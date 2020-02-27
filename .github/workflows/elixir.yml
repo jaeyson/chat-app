@@ -1,0 +1,104 @@
+name: Elixir CI
+
+on: ["push", "pull_request"]
+
+jobs:
+  check-commit-message:
+    name: check commit message for skipping build(s)
+    runs-on: ubuntu-latest
+
+    # skips CI and prints cli message, without fail build badge
+    if: "contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: print message via cli
+        run: echo "no need to build, based from commit message"
+
+  setup-elixir:
+    name: Setup Elixir and test it
+    runs-on: ubuntu-latest
+    env:
+      MIX_ENV: test
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # doesn't contain "ci skip" in commit message
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
+    services:
+      postgres:
+        image: postgres:alpine
+        ports: ['5432:5432']
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - uses: actions/setup-elixir@v1
+        with:
+          otp-version: 22.x
+          elixir-version: 1.9.x
+
+      - name: get deps cache
+        uses: actions/cache@v1
+        id: deps-cache
+        with:
+          path: deps/
+          key: ${{ runner.os }}-deps-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: get build cache
+        uses: actions/cache@v1
+        id: build-cache
+        with:
+          path: _build/test/
+          key: ${{ runner.os }}-build-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install Dependencies
+        if: (steps.deps-cache.outputs.cache-hit != 'true') && (steps.build-cache.outputs.cache-hit != 'true')
+        run: |
+          mix local.rebar --force
+          mix local.hex --force
+          mix deps.get
+          mix format --check-formatted
+
+      - name: Run Tests
+        run: mix test --trace
+
+      # - name: Codecov Github Action
+      #   uses: codecov/codecov-action@v1
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: ExCoveralls Github Action
+        run: mix coveralls.github
+
+  push-heroku:
+    needs: setup-elixir
+    runs-on: ubuntu-latest
+
+    # if the commit messages contains "[push heroku]"
+    if: "github.ref == 'refs/heads/master' && contains(github.event.head_commit.message, '[push heroku]')"
+
+    steps:
+      - env:
+          HEROKU_API_TOKEN: ${{ secrets.HEROKU_API_TOKEN }}
+          HEROKU_APP_NAME: "dwyl-phx-chat"
+        run: git push https://heroku:$HEROKU_API_TOKEN@git.heroku.com/$HEROKU_APP_NAME.git origin/master:master
+
+  push-gigalixir:
+    needs: setup-elixir
+    runs-on: ubuntu-latest
+
+    # if the commit messages contains "[push gigalixir]"
+    if: "github.ref == 'refs/heads/master' && contains(github.event.head_commit.message, '[push gigalixir]')"
+
+    steps:
+      - env:
+          GIGALIXIR_EMAIL: ${{ secrets.GIGALIXIR_EMAIL }}
+          GIGALIXIR_PASSWORD: ${{ secrets.GIGALIXIR_PASSWORD }}
+          GIGALIXIR_APP_NAME: ${{ secrets.GIGALIXIR_APP_NAME }}
+        run: |
+          sudo pip install gigalixir --ignore-installed six
+          gigalixir login -e $GIGALIXIR_EMAIL -y -p $GIGALIXIR_PASSWORD
+          gigalixir git:remote $GIGALIXIR_APP_NAME
+          git push -f gigalixir HEAD:refs/heads/master
