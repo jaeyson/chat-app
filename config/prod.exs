@@ -12,7 +12,11 @@ use Mix.Config
 config :chat, ChatWeb.Endpoint,
   http: [port: {:system, "PORT"}],
   load_from_system_env: true,
-  url: [scheme: "https", host: "dwyl-phx-chat.herokuapp.com", port: 443],
+  url: [
+    scheme: "https",
+    host: System.get_env("APP_NAME") <> "dwyl-phx-chat.herokuapp.com",
+    port: 443
+  ],
   force_ssl: [rewrite_on: [:x_forwarded_proto]],
   cache_static_manifest: "priv/static/cache_manifest.json",
   secret_key_base: Map.fetch!(System.get_env(), "SECRET_KEY_BASE")
@@ -26,7 +30,8 @@ config :chat, Chat.Repo,
 
 # Endpoint for Gigalixir
 config :chat, ChatWeb.Endpoint,
-  http: [port: {:system, "PORT"}], # Possibly not needed, but doesn't hurt
+  # Possibly not needed, but doesn't hurt
+  http: [port: {:system, "PORT"}],
   url: [host: System.get_env("APP_NAME") <> ".gigalixirapp.com", port: 80],
   check_origin: ["//*.gigalixirapp.com", "//*.jaeyson.dev"],
   secret_key_base: Map.fetch!(System.get_env(), "SECRET_KEY_BASE"),
@@ -37,8 +42,8 @@ config :chat, Chat.Repo,
   adapter: Ecto.Adapters.Postgres,
   url: System.get_env("DATABASE_URL"),
   ssl: true,
-  pool_size: 2 # Free tier db only allows 4 connections. Rolling deploys need pool_size*(n+1) connections where n is the number of app replicas.
-
+  # Free tier db only allows 4 connections. Rolling deploys need pool_size*(n+1) connections where n is the number of app replicas.
+  pool_size: 2
 
 # Do not print debug messages in production
 config :logger, level: :info
