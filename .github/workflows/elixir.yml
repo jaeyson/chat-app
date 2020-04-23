@@ -69,8 +69,8 @@ jobs:
       #   with:
       #     token: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: ExCoveralls Github Action
-        run: mix coveralls.github
+      # - name: ExCoveralls Github Action
+      #  run: mix coveralls.github
 
   push-heroku:
     needs: setup-elixir
